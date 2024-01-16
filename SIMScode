@@ -1,0 +1,96 @@
+Sub CopyandEmail()
+    Dim ws As Worksheet
+    Dim newWS As Worksheet
+    Dim pt As PivotTable
+    Dim ptField As PivotField
+    Dim ptItem As PivotItem
+    Dim rngCopy As Range
+    Dim newWB As Workbook
+    Dim tempFileName As String
+    Dim emailSubject As String
+    Dim emailBody As String
+    Dim outlookApp As Object
+    Dim outlookMail As Object
+    Dim wsData As Worksheet
+    Dim recipientName As String
+    Dim recipientEmail As String
+    Dim found As Boolean
+    Dim monthName As String
+    
+    monthName = Format(Date, "mmmm")
+    
+    emailSubject = monthName & " SIMS Invoice"
+    emailBody = "Please find this months invoice attached."
+    
+    Set wsData = ThisWorkbook.Worksheets("Email") ' Replace "Sheet1" with your sheet name
+    
+    ' Set the worksheet where your PivotTable is located
+    Set ws = ThisWorkbook.Sheets("Pivot") ' Change "Sheet1" to your sheet name
+    
+    ' Set the PivotTable
+    Set pt = ws.PivotTables("PivotTable1") ' Change "PivotTable1" to your PivotTable name
+    
+    ' Set the Pivot field to loop through
+    Set ptField = pt.PivotFields("Service Provider") ' Change "Field1" to your Pivot field name
+    
+    ' Loop through each subtotal in the Pivot field
+    For Each ptItem In ptField.PivotItems
+        pt.ClearAllFilters
+        ptField.ClearAllFilters
+        ptField.PivotFilters.Add Type:=xlCaptionEquals, Value1:=ptItem.Name
+        ptItem.Visible = True
+        recipientName = ptItem.Name
+        found = False
+        For i = 1 To wsData.Cells(Rows.Count, 1).End(xlUp).Row ' Assuming names are in column A
+            If wsData.Cells(i, 1).Value = recipientName Then
+                recipientEmail = wsData.Cells(i, 2).Value ' Assuming emails are in column B
+                found = True
+                Exit For
+            End If
+        Next i
+        If found Then
+        ' Set the range to copy - select the specific data range for the current PivotItem
+            Set rngCopy = pt.PivotFields("Service Provider").LabelRange
+            Set rngCopy = Union(rngCopy, pt.PivotFields("Service Provider").DataRange)
+            Set rngCopy = Union(rngCopy, pt.PivotFields("ID #").LabelRange)
+            Set rngCopy = Union(rngCopy, pt.PivotFields("ID #").DataRange)
+            Set rngCopy = Union(rngCopy, pt.PivotFields("Last").LabelRange)
+            Set rngCopy = Union(rngCopy, pt.PivotFields("Last").DataRange)
+            Set rngCopy = Union(rngCopy, pt.PivotFields("Approved?").LabelRange)
+            Set rngCopy = Union(rngCopy, pt.PivotFields("Approved?").DataRange)
+            Set rngCopy = Union(rngCopy, pt.PivotFields("sum of Co-Pay").LabelRange)
+            Set rngCopy = Union(rngCopy, pt.PivotFields("sum of Co-Pay").DataRange)
+            Set rngCopy = Union(rngCopy, pt.PivotFields("sum of SIMS").LabelRange)
+            Set rngCopy = Union(rngCopy, pt.PivotFields("sum of SIMS").DataRange)
+            Set rngCopy = Union(rngCopy, pt.PivotFields("sum of 1st").LabelRange)
+            Set rngCopy = Union(rngCopy, pt.PivotFields("sum of 1st").DataRange)
+            Set rngCopy = Union(rngCopy, pt.PivotFields("sum of Total").LabelRange)
+            Set rngCopy = Union(rngCopy, pt.PivotFields("sum of Total").DataRange)
+            
+            ' Copy the range to a new sheet and format
+            Set newWB = Workbooks.Add
+            rngCopy.Copy
+            newWB.Sheets(1).Range("A1").PasteSpecial Paste:=xlPasteValues
+            Application.CutCopyMode = False ' Clear the clipboard
+            
+            tempFileName = "C:\Users\drewt\Documents\SIMS Test\" & ptItem.Name & ".xlsx" ' Change the file name as needed
+            newWB.SaveAs tempFileName
+            newWB.Close SaveChanges:=True
+            Application.DisplayAlerts = False
+            
+            ' Send email with attachment
+            Set outlookApp = CreateObject("Outlook.Application")
+            Set outlookMail = outlookApp.CreateItem(0)
+            
+            With outlookMail
+            .Subject = emailSubject
+            .Body = emailBody
+            .To = recipientEmail ' Change the recipient's email address
+            .Attachments.Add tempFileName
+            .Send
+            End With
+        Else
+        End If
+    Next ptItem
+    MsgBox "Workbooks have been saved and emails sent. Check your email to verify."
+End Sub
